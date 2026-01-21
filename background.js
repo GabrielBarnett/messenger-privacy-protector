@@ -4,9 +4,19 @@ const RUNNING_KEY = 'isRunning';
 const TAB_ID_KEY = 'currentTabId';
 const DELAY_KEY = 'delay';
 const UI_WINDOW_ID_KEY = 'uiWindowId';
+const KEYWORD_FILTERS_ENABLED_KEY = 'keywordFiltersEnabled';
+const DELETE_KEYWORDS_KEY = 'deleteKeywords';
+const IGNORE_KEYWORDS_KEY = 'ignoreKeywords';
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get([RUNNING_KEY, STATUS_KEY, STATUS_TYPE_KEY], (result) => {
+  chrome.storage.local.get([
+    RUNNING_KEY,
+    STATUS_KEY,
+    STATUS_TYPE_KEY,
+    KEYWORD_FILTERS_ENABLED_KEY,
+    DELETE_KEYWORDS_KEY,
+    IGNORE_KEYWORDS_KEY
+  ], (result) => {
     const updates = {};
     if (result[RUNNING_KEY] === undefined) {
       updates[RUNNING_KEY] = false;
@@ -16,6 +26,15 @@ chrome.runtime.onInstalled.addListener(() => {
     }
     if (!result[STATUS_TYPE_KEY]) {
       updates[STATUS_TYPE_KEY] = 'info';
+    }
+    if (result[KEYWORD_FILTERS_ENABLED_KEY] === undefined) {
+      updates[KEYWORD_FILTERS_ENABLED_KEY] = false;
+    }
+    if (result[DELETE_KEYWORDS_KEY] === undefined) {
+      updates[DELETE_KEYWORDS_KEY] = '';
+    }
+    if (result[IGNORE_KEYWORDS_KEY] === undefined) {
+      updates[IGNORE_KEYWORDS_KEY] = '';
     }
     if (Object.keys(updates).length > 0) {
       chrome.storage.local.set(updates);
@@ -77,14 +96,26 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getStatus') {
     chrome.storage.local.get(
-      [RUNNING_KEY, TAB_ID_KEY, STATUS_KEY, STATUS_TYPE_KEY, DELAY_KEY],
+      [
+        RUNNING_KEY,
+        TAB_ID_KEY,
+        STATUS_KEY,
+        STATUS_TYPE_KEY,
+        DELAY_KEY,
+        KEYWORD_FILTERS_ENABLED_KEY,
+        DELETE_KEYWORDS_KEY,
+        IGNORE_KEYWORDS_KEY
+      ],
       (stored) => {
         sendResponse({
           isRunning: stored[RUNNING_KEY] || false,
           currentTabId: stored[TAB_ID_KEY] || null,
           status: stored[STATUS_KEY] || '',
           type: stored[STATUS_TYPE_KEY] || 'info',
-          delay: stored[DELAY_KEY] || '5'
+          delay: stored[DELAY_KEY] || '5',
+          keywordFiltersEnabled: stored[KEYWORD_FILTERS_ENABLED_KEY] || false,
+          deleteKeywords: stored[DELETE_KEYWORDS_KEY] || '',
+          ignoreKeywords: stored[IGNORE_KEYWORDS_KEY] || ''
         });
       }
     );
@@ -165,7 +196,10 @@ async function handleStart(request, sendResponse) {
 
     chrome.tabs.sendMessage(tab.id, {
       action: 'start',
-      delay: delayMs
+      delay: delayMs,
+      keywordFiltersEnabled: request.keywordFiltersEnabled,
+      deleteKeywords: request.deleteKeywords,
+      ignoreKeywords: request.ignoreKeywords
     });
 
     await chrome.storage.local.set({
@@ -173,7 +207,10 @@ async function handleStart(request, sendResponse) {
       [TAB_ID_KEY]: tab.id,
       [STATUS_KEY]: 'Removal started. Keep this tab open.',
       [STATUS_TYPE_KEY]: 'info',
-      [DELAY_KEY]: String(request.delay)
+      [DELAY_KEY]: String(request.delay),
+      [KEYWORD_FILTERS_ENABLED_KEY]: Boolean(request.keywordFiltersEnabled),
+      [DELETE_KEYWORDS_KEY]: request.deleteKeywords || '',
+      [IGNORE_KEYWORDS_KEY]: request.ignoreKeywords || ''
     });
 
     chrome.runtime.sendMessage({
