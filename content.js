@@ -59,13 +59,24 @@ async function unsendMessages(delay, startFrom) {
       const containerRect = scrollArea.getBoundingClientRect();
       const rightThreshold = containerRect.width * 0.55;
       
-      const yourMessages = allMessages.filter(msg => {
+      let yourMessages = allMessages.filter(msg => {
         const rect = msg.getBoundingClientRect();
         const msgCenter = rect.left + (rect.width / 2);
         const relativePosition = msgCenter - containerRect.left;
         
         return rect.width > 0 && rect.height > 0 && relativePosition > rightThreshold;
       });
+
+      if (yourMessages.length === 0) {
+        yourMessages = allMessages.filter(msg => {
+          const container = msg.closest('[data-testid="message-container"]');
+          if (!container) {
+            return false;
+          }
+          const label = (container.getAttribute('aria-label') || '').toLowerCase();
+          return label.includes('you sent') || label.includes('you replied');
+        });
+      }
       
       console.log(`Found ${yourMessages.length} messages on right side (yours)`);
       
