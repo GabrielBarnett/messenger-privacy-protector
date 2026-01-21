@@ -57,6 +57,13 @@ async function unsendMessages(delay) {
   const scrollUp = async (activeScrollArea, step, context) => {
     const initialTop = activeScrollArea.scrollTop;
     console.log(`Scrolling up${context ? ` (${context})` : ''}...`);
+    const dispatchOverscroll = async (target, attempts) => {
+      for (let i = 0; i < attempts; i++) {
+        target.dispatchEvent(new WheelEvent('wheel', { deltaY: -step, bubbles: true }));
+        await sleep(shortWait);
+      }
+    };
+
     activeScrollArea.scrollBy({ top: -step, behavior: 'smooth' });
     activeScrollArea.dispatchEvent(new WheelEvent('wheel', { deltaY: -step, bubbles: true }));
     await sleep(shortWait);
@@ -71,10 +78,20 @@ async function unsendMessages(delay) {
       return activeScrollArea;
     }
 
+    if (activeScrollArea.scrollTop <= 1) {
+      await dispatchOverscroll(activeScrollArea, 3);
+      if (activeScrollArea.scrollTop !== initialTop) {
+        return activeScrollArea;
+      }
+    }
+
     const oldestMessage = getOldestMessageInView(main);
     if (oldestMessage) {
       oldestMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
       await sleep(mediumWait);
+      if (activeScrollArea.scrollTop <= 1) {
+        await dispatchOverscroll(activeScrollArea, 2);
+      }
       if (activeScrollArea.scrollTop !== initialTop) {
         return activeScrollArea;
       }
