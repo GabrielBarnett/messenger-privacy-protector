@@ -37,8 +37,41 @@ async function unsendMessages(delay, startFrom) {
   let consecutiveFailures = 0;
   let lastMessageCount = 0;
   let sameCountStreak = 0;
-  const scrollArea = getScrollArea(main);
+  let scrollArea = getScrollArea(main);
   const scrollStep = 1200;
+
+  const scrollUp = async (activeScrollArea, step, context) => {
+    const initialTop = activeScrollArea.scrollTop;
+    console.log(`Scrolling up${context ? ` (${context})` : ''}...`);
+    activeScrollArea.scrollBy({ top: -step, behavior: 'smooth' });
+    await sleep(300);
+
+    if (activeScrollArea.scrollTop === initialTop) {
+      activeScrollArea.scrollTop = Math.max(0, initialTop - step);
+      await sleep(300);
+    }
+
+    if (activeScrollArea.scrollTop !== initialTop) {
+      return activeScrollArea;
+    }
+
+    const fallback = document.scrollingElement || activeScrollArea.parentElement;
+    if (!fallback || fallback === activeScrollArea) {
+      return activeScrollArea;
+    }
+
+    console.log('Scroll position unchanged, retrying with fallback scroll area');
+    const fallbackInitialTop = fallback.scrollTop;
+    fallback.scrollBy({ top: -step, behavior: 'smooth' });
+    await sleep(300);
+
+    if (fallback.scrollTop === fallbackInitialTop) {
+      fallback.scrollTop = Math.max(0, fallbackInitialTop - step);
+      await sleep(300);
+    }
+
+    return fallback.scrollTop !== fallbackInitialTop ? fallback : activeScrollArea;
+  };
 
   try {
     // First, scroll to the bottom to start with newest messages
@@ -100,7 +133,7 @@ async function unsendMessages(delay, startFrom) {
         
         // Scroll UP to load older messages
         console.log('Scrolling up to load more messages...');
-        scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - scrollStep);
+        scrollArea = await scrollUp(scrollArea, scrollStep, 'no messages found');
         await sleep(2500);
         continue;
       }
@@ -197,7 +230,7 @@ async function unsendMessages(delay, startFrom) {
         await sleep(500);
         
         // Scroll UP to load older messages
-        scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - scrollStep);
+        scrollArea = await scrollUp(scrollArea, scrollStep, 'no unsend option');
         await sleep(2500);
         continue;
       }
@@ -235,14 +268,22 @@ async function unsendMessages(delay, startFrom) {
       sendStatus(`Removed ${messagesRemoved} message(s)...`, 'info');
       await sleep(delay);
       
-      // After removing a message, scroll down a bit to see if more are visible
-      // This helps us continue removing from newest to oldest
-      scrollArea.scrollTop = Math.min(scrollArea.scrollHeight, scrollArea.scrollTop + 120);
-      await sleep(500);
+      const nearTop = rect.top < containerRect.top + 120;
+      const lowScrollOffset = scrollArea.scrollTop <= scrollStep;
+
+      if (nearTop || lowScrollOffset) {
+        scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
+        await sleep(500);
+      } else {
+        // After removing a message, scroll down a bit to see if more are visible
+        // This helps us continue removing from newest to oldest
+        scrollArea.scrollTop = Math.min(scrollArea.scrollHeight, scrollArea.scrollTop + 120);
+        await sleep(500);
+      }
 
       if (sameCountStreak >= 3) {
         console.log('Same message count detected, forcing scroll up');
-        scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - scrollStep);
+        scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
         await sleep(2000);
         sameCountStreak = 0;
       }
