@@ -137,7 +137,8 @@ async function unsendMessages(delay) {
         });
       }
 
-      if (yourMessages.length === 0 && allMessages.length > 0) {
+      const usingFallbackMessages = yourMessages.length === 0 && allMessages.length > 0;
+      if (usingFallbackMessages) {
         console.log('No explicit "your" messages detected; falling back to all messages.');
         yourMessages = allMessages;
       }
@@ -190,8 +191,10 @@ async function unsendMessages(delay) {
       consecutiveFailures = 0;
       noMoreMessagesStreak = 0;
       
-      // Process the LAST message (newest/bottom-most)
-      const targetMessage = candidateMessages[candidateMessages.length - 1];
+      // Process a message near the bottom unless we're in fallback mode.
+      const targetMessage = usingFallbackMessages
+        ? candidateMessages[0]
+        : candidateMessages[candidateMessages.length - 1];
       const targetText = (targetMessage.textContent || '').trim();
       const normalizedTarget = targetText.toLowerCase();
 
@@ -202,7 +205,8 @@ async function unsendMessages(delay) {
       }
       
       // Scroll it into view
-      targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const scrollBlock = usingFallbackMessages ? 'start' : 'center';
+      targetMessage.scrollIntoView({ behavior: 'smooth', block: scrollBlock });
       await sleep(mediumWait);
       
       // Create mouse events at the message location
