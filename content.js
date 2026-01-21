@@ -46,6 +46,8 @@ async function unsendMessages(delay) {
   let sameCountStreak = 0;
   let noMoreMessagesStreak = 0;
   let scrollArea = getScrollArea(main);
+  let activeScrollLabel = describeScrollTarget(scrollArea);
+  let preferOldestPasses = 0;
   const scrollStep = 1200;
   const skippedMessages = new WeakSet();
   const shortWait = 150;
@@ -55,16 +57,44 @@ async function unsendMessages(delay) {
   const scrollUp = async (activeScrollArea, step, context) => {
     const initialTop = activeScrollArea.scrollTop;
     console.log(`Scrolling up${context ? ` (${context})` : ''}...`);
+    const dispatchOverscroll = async (target, attempts) => {
+      for (let i = 0; i < attempts; i++) {
+        target.dispatchEvent(new WheelEvent('wheel', { deltaY: -step, bubbles: true }));
+        await sleep(shortWait);
+      }
+    };
+
     activeScrollArea.scrollBy({ top: -step, behavior: 'smooth' });
+    activeScrollArea.dispatchEvent(new WheelEvent('wheel', { deltaY: -step, bubbles: true }));
     await sleep(shortWait);
 
     if (activeScrollArea.scrollTop === initialTop) {
       activeScrollArea.scrollTop = Math.max(0, initialTop - step);
+      activeScrollArea.dispatchEvent(new WheelEvent('wheel', { deltaY: -step, bubbles: true }));
       await sleep(shortWait);
     }
 
     if (activeScrollArea.scrollTop !== initialTop) {
       return activeScrollArea;
+    }
+
+    if (activeScrollArea.scrollTop <= 1) {
+      await dispatchOverscroll(activeScrollArea, 3);
+      if (activeScrollArea.scrollTop !== initialTop) {
+        return activeScrollArea;
+      }
+    }
+
+    const oldestMessage = getOldestMessageInView(main);
+    if (oldestMessage) {
+      oldestMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      await sleep(mediumWait);
+      if (activeScrollArea.scrollTop <= 1) {
+        await dispatchOverscroll(activeScrollArea, 2);
+      }
+      if (activeScrollArea.scrollTop !== initialTop) {
+        return activeScrollArea;
+      }
     }
 
     const fallback = document.scrollingElement || activeScrollArea.parentElement;
@@ -75,14 +105,20 @@ async function unsendMessages(delay) {
     console.log('Scroll position unchanged, retrying with fallback scroll area');
     const fallbackInitialTop = fallback.scrollTop;
     fallback.scrollBy({ top: -step, behavior: 'smooth' });
+    fallback.dispatchEvent(new WheelEvent('wheel', { deltaY: -step, bubbles: true }));
     await sleep(shortWait);
 
     if (fallback.scrollTop === fallbackInitialTop) {
       fallback.scrollTop = Math.max(0, fallbackInitialTop - step);
+      fallback.dispatchEvent(new WheelEvent('wheel', { deltaY: -step, bubbles: true }));
       await sleep(shortWait);
     }
 
     return fallback.scrollTop !== fallbackInitialTop ? fallback : activeScrollArea;
+  };
+
+  const markPreferOldest = () => {
+    preferOldestPasses = Math.max(preferOldestPasses, 2);
   };
 
   try {
@@ -99,29 +135,9 @@ async function unsendMessages(delay) {
       // Find all message text elements
       const allMessages = getMessageElements(main);
       console.log(`Found ${allMessages.length} message text elements`);
-      
-      // Filter to messages on RIGHT side (yours)
       const containerRect = scrollArea.getBoundingClientRect();
-      const rightThreshold = containerRect.width * 0.55;
-      
-      let yourMessages = allMessages.filter(msg => {
-        const rect = msg.getBoundingClientRect();
-        const msgCenter = rect.left + (rect.width / 2);
-        const relativePosition = msgCenter - containerRect.left;
-        
-        return rect.width > 0 && rect.height > 0 && relativePosition > rightThreshold;
-      });
 
-      if (yourMessages.length === 0) {
-        yourMessages = allMessages.filter(msg => {
-          const container = msg.closest('[data-testid="message-container"]');
-          if (!container) {
-            return false;
-          }
-          const label = (container.getAttribute('aria-label') || '').toLowerCase();
-          return label.includes('you sent') || label.includes('you replied');
-        });
-      }
+      const { yourMessages, usingFallbackMessages } = getYourMessages(allMessages, scrollArea);
       
       const candidateMessages = yourMessages.filter(msg => !skippedMessages.has(msg));
       console.log(`Found ${yourMessages.length} messages on right side (yours)`);
@@ -143,6 +159,10 @@ async function unsendMessages(delay) {
         console.log('Scrolling up to load more messages...');
         const previousHeight = scrollArea.scrollHeight;
         scrollArea = await scrollUp(scrollArea, scrollStep, 'no messages found');
+        markPreferOldest();
+        if (scrollArea !== activeScrollLabel.target) {
+          activeScrollLabel = describeScrollTarget(scrollArea);
+        }
         if (scrollArea.scrollTop > 0) {
           scrollArea.scrollTop = 0;
           await sleep(shortWait);
@@ -168,8 +188,14 @@ async function unsendMessages(delay) {
       consecutiveFailures = 0;
       noMoreMessagesStreak = 0;
       
-      // Process the LAST message (newest/bottom-most)
-      const targetMessage = candidateMessages[candidateMessages.length - 1];
+      // Process a message near the bottom unless we're in fallback mode.
+      const shouldPreferOldest = usingFallbackMessages || preferOldestPasses > 0;
+      if (preferOldestPasses > 0) {
+        preferOldestPasses -= 1;
+      }
+      const targetMessage = shouldPreferOldest
+        ? candidateMessages[0]
+        : candidateMessages[candidateMessages.length - 1];
       const targetText = (targetMessage.textContent || '').trim();
       const normalizedTarget = targetText.toLowerCase();
 
@@ -180,7 +206,8 @@ async function unsendMessages(delay) {
       }
       
       // Scroll it into view
-      targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const scrollBlock = shouldPreferOldest ? 'start' : 'center';
+      targetMessage.scrollIntoView({ behavior: 'smooth', block: scrollBlock });
       await sleep(mediumWait);
       
       // Create mouse events at the message location
@@ -267,8 +294,16 @@ async function unsendMessages(delay) {
         skippedMessages.add(targetMessage);
 
         // Scroll UP to load older messages
-        scrollArea = await scrollUp(scrollArea, scrollStep, 'no unsend option');
-        await sleep(longWait);
+        if (shouldScrollUpForMore(main, scrollArea, skippedMessages)) {
+          scrollArea = await scrollUp(scrollArea, scrollStep, 'no unsend option');
+          markPreferOldest();
+          if (scrollArea !== activeScrollLabel.target) {
+            activeScrollLabel = describeScrollTarget(scrollArea);
+          }
+          await sleep(longWait);
+        } else {
+          console.log('Skipping scroll up; remaining owned messages detected.');
+        }
         continue;
       }
       
@@ -287,8 +322,16 @@ async function unsendMessages(delay) {
         const lowScrollOffset = scrollArea.scrollTop <= scrollStep;
 
         if (nearTop || lowScrollOffset) {
-          scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
-          await sleep(mediumWait);
+          if (shouldScrollUpForMore(main, scrollArea, skippedMessages)) {
+            scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
+            markPreferOldest();
+            if (scrollArea !== activeScrollLabel.target) {
+              activeScrollLabel = describeScrollTarget(scrollArea);
+            }
+            await sleep(mediumWait);
+          } else {
+            console.log('Skipping scroll up; remaining owned messages detected.');
+          }
         } else {
           scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - 200);
           await sleep(mediumWait);
@@ -296,8 +339,16 @@ async function unsendMessages(delay) {
 
         if (sameCountStreak >= 3) {
           console.log('Same message count detected, forcing scroll up');
-          scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
-          await sleep(longWait);
+          if (shouldScrollUpForMore(main, scrollArea, skippedMessages)) {
+            scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
+            markPreferOldest();
+            if (scrollArea !== activeScrollLabel.target) {
+              activeScrollLabel = describeScrollTarget(scrollArea);
+            }
+            await sleep(longWait);
+          } else {
+            console.log('Skipping scroll up; remaining owned messages detected.');
+          }
           sameCountStreak = 0;
         }
         continue;
@@ -335,8 +386,16 @@ async function unsendMessages(delay) {
       const lowScrollOffset = scrollArea.scrollTop <= scrollStep;
 
       if (nearTop || lowScrollOffset) {
-        scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
-        await sleep(mediumWait);
+        if (shouldScrollUpForMore(main, scrollArea, skippedMessages)) {
+          scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
+          markPreferOldest();
+          if (scrollArea !== activeScrollLabel.target) {
+            activeScrollLabel = describeScrollTarget(scrollArea);
+          }
+          await sleep(mediumWait);
+        } else {
+          console.log('Skipping scroll up; remaining owned messages detected.');
+        }
       } else {
         // After removing a message, nudge upward to keep moving to older messages.
         scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - 200);
@@ -345,8 +404,16 @@ async function unsendMessages(delay) {
 
       if (sameCountStreak >= 3) {
         console.log('Same message count detected, forcing scroll up');
-        scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
-        await sleep(longWait);
+        if (shouldScrollUpForMore(main, scrollArea, skippedMessages)) {
+          scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
+          markPreferOldest();
+          if (scrollArea !== activeScrollLabel.target) {
+            activeScrollLabel = describeScrollTarget(scrollArea);
+          }
+          await sleep(longWait);
+        } else {
+          console.log('Skipping scroll up; remaining owned messages detected.');
+        }
         sameCountStreak = 0;
       }
     }
@@ -454,10 +521,18 @@ function attachHistoryHooks() {
 }
 
 function getScrollArea(main) {
+  const messageSample = getMessageElements(main)[0];
+  if (messageSample) {
+    const scrollAncestor = findScrollableAncestor(messageSample);
+    if (scrollAncestor) {
+      return scrollAncestor;
+    }
+  }
+
   const candidates = [
     main.querySelector('[role="log"]'),
-    main.querySelector('[data-testid="mwthreadlist"]'),
     main.querySelector('[aria-label="Message list"]'),
+    main.querySelector('[data-testid="message-container"]')?.parentElement,
     main
   ].filter(Boolean);
 
@@ -473,6 +548,99 @@ function getScrollArea(main) {
   });
 
   return scrollable || document.scrollingElement || main;
+}
+
+function findScrollableAncestor(node) {
+  let current = node;
+  while (current && current !== document.body) {
+    if (current.scrollHeight > current.clientHeight) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function describeScrollTarget(target) {
+  const labelParts = [];
+  if (!target) {
+    return { target: null, label: 'none' };
+  }
+  if (target.id) {
+    labelParts.push(`#${target.id}`);
+  }
+  if (target.getAttribute('data-testid')) {
+    labelParts.push(`[data-testid="${target.getAttribute('data-testid')}"]`);
+  }
+  if (target.getAttribute('role')) {
+    labelParts.push(`[role="${target.getAttribute('role')}"]`);
+  }
+  labelParts.push(target.tagName.toLowerCase());
+  const label = labelParts.join(' ');
+  console.log(`Scroll target selected: ${label} (scrollHeight ${target.scrollHeight}, clientHeight ${target.clientHeight})`);
+  return { target, label };
+}
+
+function getOldestMessageInView(main) {
+  const messages = getMessageElements(main);
+  let oldest = null;
+  let oldestTop = Infinity;
+  for (const msg of messages) {
+    const rect = msg.getBoundingClientRect();
+    if (rect.height === 0 || rect.width === 0) {
+      continue;
+    }
+    if (rect.top < oldestTop) {
+      oldestTop = rect.top;
+      oldest = msg;
+    }
+  }
+  return oldest;
+}
+
+function getYourMessages(allMessages, scrollArea) {
+  const containerRect = scrollArea.getBoundingClientRect();
+  const rightThreshold = containerRect.width * 0.55;
+
+  let yourMessages = allMessages.filter(msg => {
+    const rect = msg.getBoundingClientRect();
+    const msgCenter = rect.left + (rect.width / 2);
+    const relativePosition = msgCenter - containerRect.left;
+    
+    return rect.width > 0 && rect.height > 0 && relativePosition > rightThreshold;
+  });
+
+  if (yourMessages.length === 0) {
+    yourMessages = allMessages.filter(msg => {
+      const container = msg.closest('[data-testid="message-container"], [role="row"], [data-testid="mwthreadlist-message"]');
+      if (!container) {
+        return false;
+      }
+      const label = (container.getAttribute('aria-label') || '').toLowerCase();
+      return label.includes('you sent') || label.includes('you replied') || label.includes('sent by you');
+    });
+  }
+
+  const usingFallbackMessages = yourMessages.length === 0 && allMessages.length > 0;
+  if (usingFallbackMessages) {
+    console.log('No explicit "your" messages detected; falling back to all messages.');
+    return { yourMessages: allMessages, usingFallbackMessages };
+  }
+
+  return { yourMessages, usingFallbackMessages };
+}
+
+function shouldScrollUpForMore(main, scrollArea, skippedMessages) {
+  const allMessages = getMessageElements(main);
+  if (allMessages.length === 0) {
+    return true;
+  }
+  const { yourMessages, usingFallbackMessages } = getYourMessages(allMessages, scrollArea);
+  if (usingFallbackMessages) {
+    return true;
+  }
+  const remaining = yourMessages.filter(msg => !skippedMessages.has(msg));
+  return remaining.length === 0;
 }
 
 async function handleUnsendDialog() {
