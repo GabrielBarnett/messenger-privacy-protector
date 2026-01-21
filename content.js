@@ -47,6 +47,7 @@ async function unsendMessages(delay) {
   let noMoreMessagesStreak = 0;
   let scrollArea = getScrollArea(main);
   let activeScrollLabel = describeScrollTarget(scrollArea);
+  let preferOldestPasses = 0;
   const scrollStep = 1200;
   const skippedMessages = new WeakSet();
   const shortWait = 150;
@@ -97,6 +98,10 @@ async function unsendMessages(delay) {
     }
 
     return fallback.scrollTop !== fallbackInitialTop ? fallback : activeScrollArea;
+  };
+
+  const markPreferOldest = () => {
+    preferOldestPasses = Math.max(preferOldestPasses, 2);
   };
 
   try {
@@ -163,6 +168,7 @@ async function unsendMessages(delay) {
         console.log('Scrolling up to load more messages...');
         const previousHeight = scrollArea.scrollHeight;
         scrollArea = await scrollUp(scrollArea, scrollStep, 'no messages found');
+        markPreferOldest();
         if (scrollArea !== activeScrollLabel.target) {
           activeScrollLabel = describeScrollTarget(scrollArea);
         }
@@ -192,7 +198,11 @@ async function unsendMessages(delay) {
       noMoreMessagesStreak = 0;
       
       // Process a message near the bottom unless we're in fallback mode.
-      const targetMessage = usingFallbackMessages
+      const shouldPreferOldest = usingFallbackMessages || preferOldestPasses > 0;
+      if (preferOldestPasses > 0) {
+        preferOldestPasses -= 1;
+      }
+      const targetMessage = shouldPreferOldest
         ? candidateMessages[0]
         : candidateMessages[candidateMessages.length - 1];
       const targetText = (targetMessage.textContent || '').trim();
@@ -205,7 +215,7 @@ async function unsendMessages(delay) {
       }
       
       // Scroll it into view
-      const scrollBlock = usingFallbackMessages ? 'start' : 'center';
+      const scrollBlock = shouldPreferOldest ? 'start' : 'center';
       targetMessage.scrollIntoView({ behavior: 'smooth', block: scrollBlock });
       await sleep(mediumWait);
       
@@ -294,6 +304,7 @@ async function unsendMessages(delay) {
 
         // Scroll UP to load older messages
         scrollArea = await scrollUp(scrollArea, scrollStep, 'no unsend option');
+        markPreferOldest();
         if (scrollArea !== activeScrollLabel.target) {
           activeScrollLabel = describeScrollTarget(scrollArea);
         }
@@ -317,6 +328,7 @@ async function unsendMessages(delay) {
 
         if (nearTop || lowScrollOffset) {
           scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
+          markPreferOldest();
           if (scrollArea !== activeScrollLabel.target) {
             activeScrollLabel = describeScrollTarget(scrollArea);
           }
@@ -329,6 +341,7 @@ async function unsendMessages(delay) {
         if (sameCountStreak >= 3) {
           console.log('Same message count detected, forcing scroll up');
           scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
+          markPreferOldest();
           if (scrollArea !== activeScrollLabel.target) {
             activeScrollLabel = describeScrollTarget(scrollArea);
           }
@@ -371,6 +384,7 @@ async function unsendMessages(delay) {
 
       if (nearTop || lowScrollOffset) {
         scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
+        markPreferOldest();
         if (scrollArea !== activeScrollLabel.target) {
           activeScrollLabel = describeScrollTarget(scrollArea);
         }
@@ -384,6 +398,7 @@ async function unsendMessages(delay) {
       if (sameCountStreak >= 3) {
         console.log('Same message count detected, forcing scroll up');
         scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
+        markPreferOldest();
         if (scrollArea !== activeScrollLabel.target) {
           activeScrollLabel = describeScrollTarget(scrollArea);
         }
