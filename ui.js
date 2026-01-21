@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
   startBtn.addEventListener('click', function() {
     const delay = parseInt(delayInput.value, 10);
 
-    if (Number.isNaN(delay) || delay <= 0) {
+    if (Number.isNaN(delay) || delay < 0) {
       showStatus('Please enter a valid delay.', 'warning');
       return;
     }

@@ -47,16 +47,19 @@ async function unsendMessages(delay) {
   let scrollArea = getScrollArea(main);
   const scrollStep = 1200;
   const skippedMessages = new WeakSet();
+  const shortWait = 150;
+  const mediumWait = 300;
+  const longWait = 600;
 
   const scrollUp = async (activeScrollArea, step, context) => {
     const initialTop = activeScrollArea.scrollTop;
     console.log(`Scrolling up${context ? ` (${context})` : ''}...`);
     activeScrollArea.scrollBy({ top: -step, behavior: 'smooth' });
-    await sleep(300);
+    await sleep(shortWait);
 
     if (activeScrollArea.scrollTop === initialTop) {
       activeScrollArea.scrollTop = Math.max(0, initialTop - step);
-      await sleep(300);
+      await sleep(shortWait);
     }
 
     if (activeScrollArea.scrollTop !== initialTop) {
@@ -71,11 +74,11 @@ async function unsendMessages(delay) {
     console.log('Scroll position unchanged, retrying with fallback scroll area');
     const fallbackInitialTop = fallback.scrollTop;
     fallback.scrollBy({ top: -step, behavior: 'smooth' });
-    await sleep(300);
+    await sleep(shortWait);
 
     if (fallback.scrollTop === fallbackInitialTop) {
       fallback.scrollTop = Math.max(0, fallbackInitialTop - step);
-      await sleep(300);
+      await sleep(shortWait);
     }
 
     return fallback.scrollTop !== fallbackInitialTop ? fallback : activeScrollArea;
@@ -84,10 +87,10 @@ async function unsendMessages(delay) {
   try {
     // First, scroll to the bottom to start with newest messages
     scrollArea.scrollTop = scrollArea.scrollHeight;
-    await sleep(2000);
+    await sleep(longWait);
     
     while (!shouldStop) {
-      await sleep(3000);
+      await sleep(mediumWait);
       
       attempts++;
       console.log(`\n=== Attempt ${attempts} ===`);
@@ -144,7 +147,7 @@ async function unsendMessages(delay) {
         // Scroll UP to load older messages
         console.log('Scrolling up to load more messages...');
         scrollArea = await scrollUp(scrollArea, scrollStep, 'no messages found');
-        await sleep(2500);
+        await sleep(longWait);
         continue;
       }
       
@@ -163,7 +166,7 @@ async function unsendMessages(delay) {
       
       // Scroll it into view
       targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      await sleep(1000);
+      await sleep(mediumWait);
       
       // Create mouse events at the message location
       const rect = targetMessage.getBoundingClientRect();
@@ -182,7 +185,7 @@ async function unsendMessages(delay) {
         document.elementFromPoint(centerX, centerY)?.dispatchEvent(event);
       }
       
-      await sleep(1000);
+      await sleep(mediumWait);
       
       // Look for More button near this message
       const moreButtons = document.querySelectorAll('[aria-label="More"]');
@@ -203,7 +206,7 @@ async function unsendMessages(delay) {
           console.log('Found More button near target');
           btn.click();
           clickedMenu = true;
-          await sleep(1500);
+          await sleep(longWait);
           break;
         }
       }
@@ -224,7 +227,7 @@ async function unsendMessages(delay) {
             clientY: moreButtonY
           });
           elementAtPoint.dispatchEvent(clickEvent);
-          await sleep(1500);
+          await sleep(longWait);
         }
       }
       
@@ -245,19 +248,19 @@ async function unsendMessages(delay) {
       if (!unsendItem) {
         console.log('No Unsend option - scrolling up to find older messages');
         document.body.click();
-        await sleep(500);
+        await sleep(mediumWait);
         skippedMessages.add(targetMessage);
 
         // Scroll UP to load older messages
         scrollArea = await scrollUp(scrollArea, scrollStep, 'no unsend option');
-        await sleep(2500);
+        await sleep(longWait);
         continue;
       }
       
       // Click Unsend
       console.log('Clicking Unsend...');
       unsendItem.click();
-      await sleep(1500);
+      await sleep(longWait);
 
       const dialogHandled = await handleUnsendDialog();
       if (dialogHandled) {
@@ -270,16 +273,16 @@ async function unsendMessages(delay) {
 
         if (nearTop || lowScrollOffset) {
           scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
-          await sleep(500);
+          await sleep(mediumWait);
         } else {
           scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - 200);
-          await sleep(500);
+          await sleep(mediumWait);
         }
 
         if (sameCountStreak >= 3) {
           console.log('Same message count detected, forcing scroll up');
           scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
-          await sleep(2000);
+          await sleep(longWait);
           sameCountStreak = 0;
         }
         continue;
@@ -301,7 +304,7 @@ async function unsendMessages(delay) {
       if (!confirmBtn) {
         console.log('No confirm button');
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-        await sleep(500);
+        await sleep(mediumWait);
         continue;
       }
       
@@ -318,17 +321,17 @@ async function unsendMessages(delay) {
 
       if (nearTop || lowScrollOffset) {
         scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
-        await sleep(500);
+        await sleep(mediumWait);
       } else {
         // After removing a message, nudge upward to keep moving to older messages.
         scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - 200);
-        await sleep(500);
+        await sleep(mediumWait);
       }
 
       if (sameCountStreak >= 3) {
         console.log('Same message count detected, forcing scroll up');
         scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
-        await sleep(2000);
+        await sleep(longWait);
         sameCountStreak = 0;
       }
     }
