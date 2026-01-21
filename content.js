@@ -1,5 +1,12 @@
 let isRunning = false;
 let shouldStop = false;
+const MESSAGE_SELECTORS = [
+  '[data-testid="mw-message-text"]',
+  '[data-testid="message_text"]',
+  '[data-testid="message-container"] [dir="auto"]',
+  '[role="row"] [dir="auto"]',
+  'div[dir="auto"]'
+];
 
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === 'start') {
@@ -30,11 +37,12 @@ async function unsendMessages(delay, startFrom) {
   let consecutiveFailures = 0;
   let lastMessageCount = 0;
   let sameCountStreak = 0;
+  const scrollArea = getScrollArea(main);
+  const scrollStep = 1400;
 
   try {
     // First, scroll to the bottom to start with newest messages
-    const scrollArea = main.querySelector('[role="log"]') || main;
-    scrollArea.scrollTo(0, scrollArea.scrollHeight);
+    scrollArea.scrollTop = scrollArea.scrollHeight;
     await sleep(2000);
     
     while (!shouldStop) {
@@ -44,21 +52,31 @@ async function unsendMessages(delay, startFrom) {
       console.log(`\n=== Attempt ${attempts} ===`);
       
       // Find all message text elements
-      const allMessages = Array.from(main.querySelectorAll('div[dir="auto"]'));
+      const allMessages = getMessageElements(main);
       console.log(`Found ${allMessages.length} message text elements`);
       
       // Filter to messages on RIGHT side (yours)
-      const mainWidth = main.getBoundingClientRect().width;
-      const rightThreshold = mainWidth * 0.5;
+      const containerRect = scrollArea.getBoundingClientRect();
+      const rightThreshold = containerRect.width * 0.55;
       
-      const yourMessages = allMessages.filter(msg => {
+      let yourMessages = allMessages.filter(msg => {
         const rect = msg.getBoundingClientRect();
         const msgCenter = rect.left + (rect.width / 2);
-        const mainLeft = main.getBoundingClientRect().left;
-        const relativePosition = msgCenter - mainLeft;
+        const relativePosition = msgCenter - containerRect.left;
         
-        return relativePosition > rightThreshold;
+        return rect.width > 0 && rect.height > 0 && relativePosition > rightThreshold;
       });
+
+      if (yourMessages.length === 0) {
+        yourMessages = allMessages.filter(msg => {
+          const container = msg.closest('[data-testid="message-container"]');
+          if (!container) {
+            return false;
+          }
+          const label = (container.getAttribute('aria-label') || '').toLowerCase();
+          return label.includes('you sent') || label.includes('you replied');
+        });
+      }
       
       console.log(`Found ${yourMessages.length} messages on right side (yours)`);
       
@@ -82,8 +100,8 @@ async function unsendMessages(delay, startFrom) {
         
         // Scroll UP to load older messages
         console.log('Scrolling up to load more messages...');
-        scrollArea.scrollBy(0, -1000);
-        await sleep(2000);
+        await scrollUp(scrollArea, scrollStep);
+        await sleep(2500);
         continue;
       }
       
@@ -179,8 +197,8 @@ async function unsendMessages(delay, startFrom) {
         await sleep(500);
         
         // Scroll UP to load older messages
-        scrollArea.scrollBy(0, -1000);
-        await sleep(2000);
+        await scrollUp(scrollArea, scrollStep);
+        await sleep(2500);
         continue;
       }
       
@@ -219,8 +237,15 @@ async function unsendMessages(delay, startFrom) {
       
       // After removing a message, scroll down a bit to see if more are visible
       // This helps us continue removing from newest to oldest
-      scrollArea.scrollBy(0, 100);
+      scrollArea.scrollTop = Math.min(scrollArea.scrollHeight, scrollArea.scrollTop + 120);
       await sleep(500);
+
+      if (sameCountStreak >= 3) {
+        console.log('Same message count detected, forcing scroll up');
+        await scrollUp(scrollArea, scrollStep);
+        await sleep(2000);
+        sameCountStreak = 0;
+      }
     }
     
     sendStatus(`Complete! Removed ${messagesRemoved} message(s).`, 'success');
@@ -237,6 +262,66 @@ async function unsendMessages(delay, startFrom) {
 
 function sendStatus(message, type) {
   chrome.runtime.sendMessage({ status: message, type: type });
+}
+
+function getScrollArea(main) {
+  const candidates = [
+    main.querySelector('[role="log"]'),
+    main.querySelector('[data-testid="mwthreadlist"]'),
+    main.querySelector('[aria-label="Message list"]'),
+    main
+  ].filter(Boolean);
+
+  const scrollable = Array.from(main.querySelectorAll('div')).filter(el => {
+    const style = window.getComputedStyle(el);
+    return style.overflowY !== 'hidden' && el.scrollHeight > el.clientHeight;
+  });
+
+  const allCandidates = candidates.concat(scrollable);
+  let best = allCandidates[0] || main;
+  for (const candidate of allCandidates) {
+    if (candidate.scrollHeight > best.scrollHeight) {
+      best = candidate;
+    }
+  }
+
+  return best || document.scrollingElement || main;
+}
+
+function getMessageElements(main) {
+  const elements = new Set();
+  for (const selector of MESSAGE_SELECTORS) {
+    main.querySelectorAll(selector).forEach(el => elements.add(el));
+  }
+
+  return Array.from(elements).filter(el => {
+    if (!el.textContent.trim()) {
+      return false;
+    }
+    if (el.closest('[role="textbox"]')) {
+      return false;
+    }
+    if (el.closest('[data-testid="composer"]')) {
+      return false;
+    }
+    return true;
+  });
+}
+
+async function scrollUp(scrollArea, amount) {
+  const before = scrollArea.scrollTop;
+  scrollArea.scrollTop = Math.max(0, before - amount);
+
+  if (scrollArea.scrollTop === before) {
+    scrollArea.dispatchEvent(new WheelEvent('wheel', { deltaY: -amount, bubbles: true }));
+    await sleep(200);
+  }
+
+  if (scrollArea.scrollTop === before) {
+    scrollArea.focus?.();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', keyCode: 33, bubbles: true }));
+    await sleep(200);
+  }
 }
 
 function sleep(ms) {
