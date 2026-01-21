@@ -38,7 +38,7 @@ async function unsendMessages(delay, startFrom) {
   let lastMessageCount = 0;
   let sameCountStreak = 0;
   const scrollArea = getScrollArea(main);
-  const scrollStep = 1400;
+  const scrollStep = 1200;
 
   try {
     // First, scroll to the bottom to start with newest messages
@@ -100,7 +100,7 @@ async function unsendMessages(delay, startFrom) {
         
         // Scroll UP to load older messages
         console.log('Scrolling up to load more messages...');
-        await scrollUp(scrollArea, scrollStep);
+        scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - scrollStep);
         await sleep(2500);
         continue;
       }
@@ -197,7 +197,7 @@ async function unsendMessages(delay, startFrom) {
         await sleep(500);
         
         // Scroll UP to load older messages
-        await scrollUp(scrollArea, scrollStep);
+        scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - scrollStep);
         await sleep(2500);
         continue;
       }
@@ -242,7 +242,7 @@ async function unsendMessages(delay, startFrom) {
 
       if (sameCountStreak >= 3) {
         console.log('Same message count detected, forcing scroll up');
-        await scrollUp(scrollArea, scrollStep);
+        scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - scrollStep);
         await sleep(2000);
         sameCountStreak = 0;
       }
@@ -272,20 +272,18 @@ function getScrollArea(main) {
     main
   ].filter(Boolean);
 
-  const scrollable = Array.from(main.querySelectorAll('div')).filter(el => {
+  for (const candidate of candidates) {
+    if (candidate.scrollHeight > candidate.clientHeight) {
+      return candidate;
+    }
+  }
+
+  const scrollable = Array.from(main.querySelectorAll('div')).find(el => {
     const style = window.getComputedStyle(el);
     return style.overflowY !== 'hidden' && el.scrollHeight > el.clientHeight;
   });
 
-  const allCandidates = candidates.concat(scrollable);
-  let best = allCandidates[0] || main;
-  for (const candidate of allCandidates) {
-    if (candidate.scrollHeight > best.scrollHeight) {
-      best = candidate;
-    }
-  }
-
-  return best || document.scrollingElement || main;
+  return scrollable || document.scrollingElement || main;
 }
 
 function getMessageElements(main) {
@@ -306,22 +304,6 @@ function getMessageElements(main) {
     }
     return true;
   });
-}
-
-async function scrollUp(scrollArea, amount) {
-  const before = scrollArea.scrollTop;
-  scrollArea.scrollTop = Math.max(0, before - amount);
-
-  if (scrollArea.scrollTop === before) {
-    scrollArea.dispatchEvent(new WheelEvent('wheel', { deltaY: -amount, bubbles: true }));
-    await sleep(200);
-  }
-
-  if (scrollArea.scrollTop === before) {
-    scrollArea.focus?.();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp', keyCode: 33, bubbles: true }));
-    await sleep(200);
-  }
 }
 
 function sleep(ms) {
