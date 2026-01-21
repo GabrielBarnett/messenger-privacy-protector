@@ -35,6 +35,12 @@ Messenger Privacy Protector is an unpacked Chrome extension that helps you quick
 - Ignore or only delete image messages.
 - Save a log of everything deleted.
 
+## Future Ideas (Not Yet Implemented)
+
+- Export the troubleshooting log as CSV/JSON for record-keeping.
+- Add message-type filters (text-only, media-only, or exclude images) to pair with keyword filters.
+- Provide an ownership verification step that stops if no "sent by you" messages are detected.
+
 ## Development
 
 - `background.js` handles extension background behavior.

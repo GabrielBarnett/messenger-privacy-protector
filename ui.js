@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const deleteKeywords = document.getElementById('deleteKeywords');
   const ignoreKeywords = document.getElementById('ignoreKeywords');
   const LOG_KEY = 'troubleshootingLogEntries';
+  const MAX_LOG_ENTRIES = 200;
   let logEntries = [];
 
   chrome.storage.local.get([LOG_KEY], (stored) => {
@@ -126,6 +127,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const safeType = type || 'info';
     logEntries.push(`[${timestamp}] [${safeType}] ${message}`);
+    if (logEntries.length > MAX_LOG_ENTRIES) {
+      logEntries = logEntries.slice(-MAX_LOG_ENTRIES);
+    }
     chrome.storage.local.set({ [LOG_KEY]: logEntries });
     renderLogEntries(true);
   }
