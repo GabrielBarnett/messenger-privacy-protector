@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const stopBtn = document.getElementById('stopBtn');
   const statusDiv = document.getElementById('status');
   const delayInput = document.getElementById('delay');
+  const zeroDelayDisclaimer = document.getElementById('zeroDelayDisclaimer');
   chrome.runtime.sendMessage({ action: 'getStatus' }, function(response) {
     if (chrome.runtime.lastError) {
       showStatus('Unable to load status.', 'warning');
@@ -11,12 +12,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (response) {
       delayInput.value = response.delay || '5';
+      updateZeroDelayDisclaimer();
       updateButtons(response.isRunning);
       if (response.status) {
         showStatus(response.status, response.type || 'info');
       }
     }
   });
+
+  delayInput.addEventListener('input', updateZeroDelayDisclaimer);
 
   startBtn.addEventListener('click', function() {
     const delay = parseInt(delayInput.value, 10);
@@ -77,6 +81,11 @@ document.addEventListener('DOMContentLoaded', function() {
       startBtn.style.display = 'block';
       stopBtn.style.display = 'none';
     }
+  }
+
+  function updateZeroDelayDisclaimer() {
+    const delay = parseInt(delayInput.value, 10);
+    zeroDelayDisclaimer.style.display = delay === 0 ? 'block' : 'none';
   }
 
   function showStatus(message, type) {
