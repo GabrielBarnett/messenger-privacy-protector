@@ -9,7 +9,15 @@ document.addEventListener('DOMContentLoaded', function() {
   const keywordFiltersMenu = document.getElementById('keywordFiltersMenu');
   const deleteKeywords = document.getElementById('deleteKeywords');
   const ignoreKeywords = document.getElementById('ignoreKeywords');
-  const logEntries = [];
+  const LOG_KEY = 'troubleshootingLogEntries';
+  let logEntries = [];
+
+  chrome.storage.local.get([LOG_KEY], (stored) => {
+    if (Array.isArray(stored[LOG_KEY])) {
+      logEntries = stored[LOG_KEY];
+      renderLogEntries(true);
+    }
+  });
   chrome.runtime.sendMessage({ action: 'getStatus' }, function(response) {
     if (chrome.runtime.lastError) {
       showStatus('Unable to load status.', 'warning');
@@ -118,7 +126,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const safeType = type || 'info';
     logEntries.push(`[${timestamp}] [${safeType}] ${message}`);
-    const trimmed = logEntries.slice(-12);
-    troubleshootingLog.textContent = trimmed.join('\n');
+    chrome.storage.local.set({ [LOG_KEY]: logEntries });
+    renderLogEntries(true);
+  }
+
+  function renderLogEntries(shouldScroll) {
+    troubleshootingLog.textContent = logEntries.join('\n');
+    if (shouldScroll) {
+      troubleshootingLog.scrollTop = troubleshootingLog.scrollHeight;
+    }
   }
 });
