@@ -191,10 +191,22 @@ async function handleStart(request, sendResponse) {
   }
 
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['content.js']
-    });
+    let contentScriptReady = false;
+    try {
+      await chrome.tabs.sendMessage(tab.id, { action: 'ping' });
+      contentScriptReady = true;
+    } catch (error) {
+      if (!error?.message?.includes('Could not establish connection')) {
+        throw error;
+      }
+    }
+
+    if (!contentScriptReady) {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+    }
 
     await new Promise((resolve) => setTimeout(resolve, 500));
 

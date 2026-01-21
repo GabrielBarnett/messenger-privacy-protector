@@ -1,3 +1,8 @@
+if (window.__mppInjected) {
+  console.warn('Messenger Privacy Protector already injected; skipping reinitialization.');
+} else {
+  window.__mppInjected = true;
+
 let isRunning = false;
 let shouldStop = false;
 let currentThreadIdentity = null;
@@ -13,6 +18,10 @@ const MESSAGE_SELECTORS = [
 ];
 
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  if (request.action === 'ping') {
+    sendResponse({ ok: true });
+    return;
+  }
   if (request.action === 'start') {
     if (!isRunning) {
       isRunning = true;
@@ -748,4 +757,6 @@ function buildKeywordFilters({ enabled, deleteKeywords, ignoreKeywords }) {
 
 function containsKeyword(text, keywords) {
   return keywords.some(keyword => text.includes(keyword));
+}
+
 }
