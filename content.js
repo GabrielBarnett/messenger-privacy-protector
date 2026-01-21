@@ -17,7 +17,12 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (!isRunning) {
       isRunning = true;
       shouldStop = false;
-      unsendMessages(request.delay);
+      const keywordFilters = buildKeywordFilters({
+        enabled: request.keywordFiltersEnabled,
+        deleteKeywords: request.deleteKeywords,
+        ignoreKeywords: request.ignoreKeywords
+      });
+      unsendMessages(request.delay, keywordFilters);
     }
   } else if (request.action === 'stop') {
     shouldStop = true;
@@ -25,7 +30,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   }
 });
 
-async function unsendMessages(delay) {
+async function unsendMessages(delay, keywordFilters) {
   console.log('Starting automatic unsend from newest to oldest');
   sendStatus('Starting...', 'info');
   
@@ -203,6 +208,19 @@ async function unsendMessages(delay) {
         console.log('Skipping deleted message placeholder');
         skippedMessages.add(targetMessage);
         continue;
+      }
+
+      if (keywordFilters) {
+        if (keywordFilters.ignore.length > 0 && containsKeyword(normalizedTarget, keywordFilters.ignore)) {
+          console.log('Skipping message due to ignore keyword filter');
+          skippedMessages.add(targetMessage);
+          continue;
+        }
+        if (keywordFilters.delete.length > 0 && !containsKeyword(normalizedTarget, keywordFilters.delete)) {
+          console.log('Skipping message due to delete keyword filter');
+          skippedMessages.add(targetMessage);
+          continue;
+        }
       }
       
       // Scroll it into view
@@ -706,3 +724,28 @@ function sleep(ms) {
 }
 
 console.log('Messenger Privacy Protector ready');
+
+function buildKeywordFilters({ enabled, deleteKeywords, ignoreKeywords }) {
+  if (!enabled) {
+    return null;
+  }
+
+  const parseList = (value) => {
+    if (!value) {
+      return [];
+    }
+    return value
+      .split(',')
+      .map(entry => entry.trim().toLowerCase())
+      .filter(Boolean);
+  };
+
+  return {
+    delete: parseList(deleteKeywords),
+    ignore: parseList(ignoreKeywords)
+  };
+}
+
+function containsKeyword(text, keywords) {
+  return keywords.some(keyword => text.includes(keyword));
+}

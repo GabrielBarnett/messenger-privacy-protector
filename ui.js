@@ -5,6 +5,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const delayInput = document.getElementById('delay');
   const zeroDelayDisclaimer = document.getElementById('zeroDelayDisclaimer');
   const troubleshootingLog = document.getElementById('troubleshootingLog');
+  const keywordFiltersEnabled = document.getElementById('keywordFiltersEnabled');
+  const keywordFiltersMenu = document.getElementById('keywordFiltersMenu');
+  const deleteKeywords = document.getElementById('deleteKeywords');
+  const ignoreKeywords = document.getElementById('ignoreKeywords');
   const logEntries = [];
   chrome.runtime.sendMessage({ action: 'getStatus' }, function(response) {
     if (chrome.runtime.lastError) {
@@ -14,6 +18,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (response) {
       delayInput.value = response.delay || '5';
+      keywordFiltersEnabled.checked = Boolean(response.keywordFiltersEnabled);
+      deleteKeywords.value = response.deleteKeywords || '';
+      ignoreKeywords.value = response.ignoreKeywords || '';
+      updateKeywordMenu();
       updateZeroDelayDisclaimer();
       updateButtons(response.isRunning);
       if (response.status) {
@@ -23,6 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   delayInput.addEventListener('input', updateZeroDelayDisclaimer);
+  keywordFiltersEnabled.addEventListener('change', updateKeywordMenu);
 
   startBtn.addEventListener('click', function() {
     const delay = parseInt(delayInput.value, 10);
@@ -34,7 +43,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     chrome.runtime.sendMessage({
       action: 'start',
-      delay: delay
+      delay: delay,
+      keywordFiltersEnabled: keywordFiltersEnabled.checked,
+      deleteKeywords: deleteKeywords.value,
+      ignoreKeywords: ignoreKeywords.value
     }, function(response) {
       if (chrome.runtime.lastError) {
         showStatus('Error: ' + chrome.runtime.lastError.message, 'warning');
@@ -88,6 +100,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function updateZeroDelayDisclaimer() {
     const delay = parseInt(delayInput.value, 10);
     zeroDelayDisclaimer.style.display = delay === 0 ? 'block' : 'none';
+  }
+
+  function updateKeywordMenu() {
+    keywordFiltersMenu.style.display = keywordFiltersEnabled.checked ? 'block' : 'none';
   }
 
   function showStatus(message, type) {
