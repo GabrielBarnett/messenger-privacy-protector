@@ -1,5 +1,9 @@
 let isRunning = false;
 let shouldStop = false;
+let currentThreadIdentity = null;
+let navigationObserver = null;
+let navigationHooksAttached = false;
+let navigationListenerAttached = false;
 const MESSAGE_SELECTORS = [
   '[data-testid="mw-message-text"]',
   '[data-testid="message_text"]',
@@ -31,6 +35,9 @@ async function unsendMessages(delay, startFrom) {
     isRunning = false;
     return;
   }
+
+  currentThreadIdentity = getThreadIdentityKey();
+  startNavigationWatcher(main);
 
   let messagesRemoved = 0;
   let attempts = 0;
@@ -329,6 +336,92 @@ async function unsendMessages(delay, startFrom) {
 
 function sendStatus(message, type) {
   chrome.runtime.sendMessage({ status: message, type: type });
+}
+
+function getThreadIdentityKey() {
+  const path = location.pathname;
+  const match = path.match(/\/t\/([^/]+)/);
+  const headerLink = document.querySelector('header a[href*="/t/"], header a[href*="messenger.com/t/"]');
+  const headerHref = headerLink?.getAttribute('href') || '';
+  if (headerHref) {
+    return headerHref;
+  }
+  if (match?.[1]) {
+    return `/t/${match[1]}`;
+  }
+  return path;
+}
+
+function stopForChatChange() {
+  if (shouldStop) {
+    return;
+  }
+  shouldStop = true;
+  isRunning = false;
+  sendStatus('Stopped: chat changed', 'warning');
+  chrome.runtime.sendMessage({ action: 'stopped', reason: 'chat changed' });
+}
+
+function handleThreadCheck() {
+  if (!isRunning) {
+    return;
+  }
+  const nextIdentity = getThreadIdentityKey();
+  if (!currentThreadIdentity) {
+    currentThreadIdentity = nextIdentity;
+    return;
+  }
+  if (nextIdentity && nextIdentity !== currentThreadIdentity) {
+    stopForChatChange();
+    currentThreadIdentity = nextIdentity;
+  }
+}
+
+function startNavigationWatcher(main) {
+  if (!navigationHooksAttached) {
+    attachHistoryHooks();
+    navigationHooksAttached = true;
+  }
+
+  if (!navigationListenerAttached) {
+    window.addEventListener('mpp:history-change', handleThreadCheck);
+    navigationListenerAttached = true;
+  }
+
+  if (navigationObserver) {
+    navigationObserver.disconnect();
+  }
+
+  const observerTarget = main || document.body;
+  navigationObserver = new MutationObserver(() => {
+    if (!isRunning) {
+      return;
+    }
+    handleThreadCheck();
+  });
+  navigationObserver.observe(observerTarget, { childList: true, subtree: true });
+}
+
+function attachHistoryHooks() {
+  const wrapHistoryMethod = (methodName) => {
+    const original = history[methodName];
+    if (original._mppWrapped) {
+      return;
+    }
+    const wrapped = function(...args) {
+      const result = original.apply(this, args);
+      window.dispatchEvent(new Event('mpp:history-change'));
+      return result;
+    };
+    wrapped._mppWrapped = true;
+    history[methodName] = wrapped;
+  };
+
+  wrapHistoryMethod('pushState');
+  wrapHistoryMethod('replaceState');
+  window.addEventListener('popstate', () => {
+    window.dispatchEvent(new Event('mpp:history-change'));
+  });
 }
 
 function getScrollArea(main) {
