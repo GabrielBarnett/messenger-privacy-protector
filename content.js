@@ -64,6 +64,7 @@ async function unsendMessages(delay, keywordFilters) {
   let preferOldestPasses = 0;
   const scrollStep = 1200;
   const skippedMessages = new WeakSet();
+  const processedMessages = new WeakSet();
   const shortWait = 150;
   const mediumWait = 300;
   const longWait = 600;
@@ -153,7 +154,12 @@ async function unsendMessages(delay, keywordFilters) {
 
       const { yourMessages, usingFallbackMessages } = getYourMessages(allMessages, scrollArea);
       
-      const candidateMessages = yourMessages.filter(msg => !skippedMessages.has(msg));
+      const candidateMessages = yourMessages.filter(msg => {
+        if (skippedMessages.has(msg) || processedMessages.has(msg)) {
+          return false;
+        }
+        return msg.getAttribute('data-mpp-processed') !== 'true';
+      });
       console.log(`Found ${yourMessages.length} messages on right side (yours)`);
       console.log(`Found ${candidateMessages.length} unskipped candidate messages`);
       
@@ -337,6 +343,8 @@ async function unsendMessages(delay, keywordFilters) {
       // Click Unsend
       console.log('Clicking Unsend...');
       unsendItem.click();
+      processedMessages.add(targetMessage);
+      targetMessage.setAttribute('data-mpp-processed', 'true');
       await sleep(longWait);
 
       const dialogHandled = await handleUnsendDialog();
