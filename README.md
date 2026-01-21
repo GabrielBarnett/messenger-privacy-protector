@@ -28,6 +28,13 @@ Messenger Privacy Protector is an unpacked Chrome extension that helps you quick
 - This extension works as an **unpacked** Chrome extension.
 - Keep the Messenger tab active while the extension is running for best results.
 
+## Upcoming Features
+
+- Select keywords for deletion.
+- Ignore messages containing specific keywords.
+- Ignore or only delete image messages.
+- Save a log of everything deleted.
+
 ## Development
 
 - `background.js` handles extension background behavior.
