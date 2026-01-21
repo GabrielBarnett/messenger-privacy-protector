@@ -109,6 +109,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false;
   }
 
+  if (request.action === 'stopped') {
+    const stoppedStatus = request.status || 'Stopped: chat changed';
+    chrome.storage.local.set({
+      [RUNNING_KEY]: false,
+      [STATUS_KEY]: stoppedStatus,
+      [STATUS_TYPE_KEY]: 'warning'
+    });
+    chrome.runtime.sendMessage({
+      action: 'stopped',
+      status: stoppedStatus,
+      type: 'warning'
+    });
+    return false;
+  }
+
   if (request.action === 'complete') {
     chrome.storage.local.set({
       [RUNNING_KEY]: false,

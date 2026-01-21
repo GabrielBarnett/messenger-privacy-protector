@@ -69,6 +69,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (request.action === 'complete') {
       updateButtons(false);
     }
+    if (request.action === 'stopped') {
+      updateButtons(false);
+    }
   });
 
   function updateButtons(isRunning) {
