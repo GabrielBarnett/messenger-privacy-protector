@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Messenger Privacy Protector",
+  "version": "1.0.0",
+  "description": "Automatically unsend your messages on Facebook Messenger to protect your privacy",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "host_permissions": [
+    "https://www.messenger.com/*",
+    "https://messenger.com/*"
+  ]
+}
