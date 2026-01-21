@@ -1,6 +1,6 @@
 # Messenger Privacy Protector
 
-Messenger Privacy Protector is an unpacked Chrome extension that helps you quickly unsend your messages within a selected chat. Once enabled, it streamlines message removal for the current conversation.
+Messenger Privacy Protector is an unpacked Chrome extension that helps you quickly bulk unsend your messages within a selected chat. Once enabled, it streamlines message removal for the current conversation.
 
 ## Features
 
