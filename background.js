@@ -3,7 +3,6 @@ const STATUS_TYPE_KEY = 'statusType';
 const RUNNING_KEY = 'isRunning';
 const TAB_ID_KEY = 'currentTabId';
 const DELAY_KEY = 'delay';
-const START_FROM_KEY = 'startFrom';
 const UI_WINDOW_ID_KEY = 'uiWindowId';
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -78,15 +77,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getStatus') {
     chrome.storage.local.get(
-      [RUNNING_KEY, TAB_ID_KEY, STATUS_KEY, STATUS_TYPE_KEY, DELAY_KEY, START_FROM_KEY],
+      [RUNNING_KEY, TAB_ID_KEY, STATUS_KEY, STATUS_TYPE_KEY, DELAY_KEY],
       (stored) => {
         sendResponse({
           isRunning: stored[RUNNING_KEY] || false,
           currentTabId: stored[TAB_ID_KEY] || null,
           status: stored[STATUS_KEY] || '',
           type: stored[STATUS_TYPE_KEY] || 'info',
-          delay: stored[DELAY_KEY] || '5',
-          startFrom: stored[START_FROM_KEY] || '1'
+          delay: stored[DELAY_KEY] || '5'
         });
       }
     );
@@ -146,8 +144,6 @@ async function handleStart(request, sendResponse) {
   }
 
   const delayMs = parseInt(request.delay, 10);
-  const startFrom = parseInt(request.startFrom, 10);
-
   if (Number.isNaN(delayMs) || delayMs <= 0) {
     sendResponse({ ok: false, error: 'Please enter a valid delay.' });
     return;
@@ -169,8 +165,7 @@ async function handleStart(request, sendResponse) {
 
     chrome.tabs.sendMessage(tab.id, {
       action: 'start',
-      delay: delayMs,
-      startFrom: startFrom
+      delay: delayMs
     });
 
     await chrome.storage.local.set({
@@ -178,8 +173,7 @@ async function handleStart(request, sendResponse) {
       [TAB_ID_KEY]: tab.id,
       [STATUS_KEY]: 'Removal started. Keep this tab open.',
       [STATUS_TYPE_KEY]: 'info',
-      [DELAY_KEY]: String(request.delay),
-      [START_FROM_KEY]: String(request.startFrom)
+      [DELAY_KEY]: String(request.delay)
     });
 
     chrome.runtime.sendMessage({

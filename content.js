@@ -17,7 +17,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (!isRunning) {
       isRunning = true;
       shouldStop = false;
-      unsendMessages(request.delay, request.startFrom);
+      unsendMessages(request.delay);
     }
   } else if (request.action === 'stop') {
     shouldStop = true;
@@ -25,7 +25,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   }
 });
 
-async function unsendMessages(delay, startFrom) {
+async function unsendMessages(delay) {
   console.log('Starting automatic unsend from newest to oldest');
   sendStatus('Starting...', 'info');
   
@@ -272,7 +272,7 @@ async function unsendMessages(delay, startFrom) {
           scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
           await sleep(500);
         } else {
-          scrollArea.scrollTop = Math.min(scrollArea.scrollHeight, scrollArea.scrollTop + 120);
+          scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - 200);
           await sleep(500);
         }
 
@@ -320,9 +320,8 @@ async function unsendMessages(delay, startFrom) {
         scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
         await sleep(500);
       } else {
-        // After removing a message, scroll down a bit to see if more are visible
-        // This helps us continue removing from newest to oldest
-        scrollArea.scrollTop = Math.min(scrollArea.scrollHeight, scrollArea.scrollTop + 120);
+        // After removing a message, nudge upward to keep moving to older messages.
+        scrollArea.scrollTop = Math.max(0, scrollArea.scrollTop - 200);
         await sleep(500);
       }
 

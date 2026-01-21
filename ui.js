@@ -3,8 +3,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const stopBtn = document.getElementById('stopBtn');
   const statusDiv = document.getElementById('status');
   const delayInput = document.getElementById('delay');
-  const startFromInput = document.getElementById('startFrom');
-
   chrome.runtime.sendMessage({ action: 'getStatus' }, function(response) {
     if (chrome.runtime.lastError) {
       showStatus('Unable to load status.', 'warning');
@@ -13,7 +11,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (response) {
       delayInput.value = response.delay || '5';
-      startFromInput.value = response.startFrom || '1';
       updateButtons(response.isRunning);
       if (response.status) {
         showStatus(response.status, response.type || 'info');
@@ -23,7 +20,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   startBtn.addEventListener('click', function() {
     const delay = parseInt(delayInput.value, 10);
-    const startFrom = parseInt(startFromInput.value, 10);
 
     if (Number.isNaN(delay) || delay <= 0) {
       showStatus('Please enter a valid delay.', 'warning');
@@ -32,8 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     chrome.runtime.sendMessage({
       action: 'start',
-      delay: delay,
-      startFrom: startFrom
+      delay: delay
     }, function(response) {
       if (chrome.runtime.lastError) {
         showStatus('Error: ' + chrome.runtime.lastError.message, 'warning');
