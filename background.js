@@ -144,7 +144,7 @@ async function handleStart(request, sendResponse) {
   }
 
   const delayMs = parseInt(request.delay, 10);
-  if (Number.isNaN(delayMs) || delayMs <= 0) {
+  if (Number.isNaN(delayMs) || delayMs < 0) {
     sendResponse({ ok: false, error: 'Please enter a valid delay.' });
     return;
   }
