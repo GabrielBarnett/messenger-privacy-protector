@@ -135,7 +135,8 @@ async function unsendMessages(delay) {
       // Find all message text elements
       const allMessages = getMessageElements(main);
       console.log(`Found ${allMessages.length} message text elements`);
-      
+      const containerRect = scrollArea.getBoundingClientRect();
+
       const { yourMessages, usingFallbackMessages } = getYourMessages(allMessages, scrollArea);
       
       const candidateMessages = yourMessages.filter(msg => !skippedMessages.has(msg));
