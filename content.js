@@ -46,6 +46,7 @@ async function unsendMessages(delay, startFrom) {
   let sameCountStreak = 0;
   let scrollArea = getScrollArea(main);
   const scrollStep = 1200;
+  const skippedMessages = new WeakSet();
 
   const scrollUp = async (activeScrollArea, step, context) => {
     const initialTop = activeScrollArea.scrollTop;
@@ -118,7 +119,9 @@ async function unsendMessages(delay, startFrom) {
         });
       }
       
+      const candidateMessages = yourMessages.filter(msg => !skippedMessages.has(msg));
       console.log(`Found ${yourMessages.length} messages on right side (yours)`);
+      console.log(`Found ${candidateMessages.length} unskipped candidate messages`);
       
       // Check if we're stuck (no change in message count)
       if (yourMessages.length === lastMessageCount) {
@@ -129,7 +132,7 @@ async function unsendMessages(delay, startFrom) {
       lastMessageCount = yourMessages.length;
       
       // If no messages found for 3 attempts, we're done
-      if (yourMessages.length === 0) {
+      if (candidateMessages.length === 0) {
         consecutiveFailures++;
         console.log(`No messages found (${consecutiveFailures}/3)`);
         
@@ -148,7 +151,15 @@ async function unsendMessages(delay, startFrom) {
       consecutiveFailures = 0;
       
       // Process the LAST message (newest/bottom-most)
-      const targetMessage = yourMessages[yourMessages.length - 1];
+      const targetMessage = candidateMessages[candidateMessages.length - 1];
+      const targetText = (targetMessage.textContent || '').trim();
+      const normalizedTarget = targetText.toLowerCase();
+
+      if (normalizedTarget === 'you deleted a message' || normalizedTarget === 'you deleted a message.') {
+        console.log('Skipping deleted message placeholder');
+        skippedMessages.add(targetMessage);
+        continue;
+      }
       
       // Scroll it into view
       targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -235,7 +246,8 @@ async function unsendMessages(delay, startFrom) {
         console.log('No Unsend option - scrolling up to find older messages');
         document.body.click();
         await sleep(500);
-        
+        skippedMessages.add(targetMessage);
+
         // Scroll UP to load older messages
         scrollArea = await scrollUp(scrollArea, scrollStep, 'no unsend option');
         await sleep(2500);
