@@ -44,6 +44,7 @@ async function unsendMessages(delay) {
   let consecutiveFailures = 0;
   let lastMessageCount = 0;
   let sameCountStreak = 0;
+  let noMoreMessagesStreak = 0;
   let scrollArea = getScrollArea(main);
   const scrollStep = 1200;
   const skippedMessages = new WeakSet();
@@ -134,24 +135,38 @@ async function unsendMessages(delay) {
       }
       lastMessageCount = yourMessages.length;
       
-      // If no messages found for 3 attempts, we're done
       if (candidateMessages.length === 0) {
         consecutiveFailures++;
-        console.log(`No messages found (${consecutiveFailures}/3)`);
-        
-        if (consecutiveFailures >= 3) {
+        console.log(`No messages found (${consecutiveFailures})`);
+
+        // Scroll UP to load older messages
+        console.log('Scrolling up to load more messages...');
+        const previousHeight = scrollArea.scrollHeight;
+        scrollArea = await scrollUp(scrollArea, scrollStep, 'no messages found');
+        if (scrollArea.scrollTop > 0) {
+          scrollArea.scrollTop = 0;
+          await sleep(shortWait);
+        }
+        await sleep(longWait);
+
+        const heightChanged = scrollArea.scrollHeight > previousHeight + 1;
+        const atTop = scrollArea.scrollTop <= 1;
+        if (atTop && !heightChanged) {
+          noMoreMessagesStreak++;
+          console.log(`No more messages detected (${noMoreMessagesStreak}/3)`);
+        } else {
+          noMoreMessagesStreak = 0;
+        }
+
+        if (noMoreMessagesStreak >= 3) {
           console.log('No more messages - done!');
           break;
         }
-        
-        // Scroll UP to load older messages
-        console.log('Scrolling up to load more messages...');
-        scrollArea = await scrollUp(scrollArea, scrollStep, 'no messages found');
-        await sleep(longWait);
         continue;
       }
-      
+
       consecutiveFailures = 0;
+      noMoreMessagesStreak = 0;
       
       // Process the LAST message (newest/bottom-most)
       const targetMessage = candidateMessages[candidateMessages.length - 1];
