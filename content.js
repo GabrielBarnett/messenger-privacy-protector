@@ -239,6 +239,32 @@ async function unsendMessages(delay, startFrom) {
       console.log('Clicking Unsend...');
       unsendItem.click();
       await sleep(1500);
+
+      const dialogHandled = await handleUnsendDialog();
+      if (dialogHandled) {
+        messagesRemoved++;
+        sendStatus(`Removed ${messagesRemoved} message(s)...`, 'info');
+        await sleep(delay);
+
+        const nearTop = rect.top < containerRect.top + 120;
+        const lowScrollOffset = scrollArea.scrollTop <= scrollStep;
+
+        if (nearTop || lowScrollOffset) {
+          scrollArea = await scrollUp(scrollArea, scrollStep, 'after unsend');
+          await sleep(500);
+        } else {
+          scrollArea.scrollTop = Math.min(scrollArea.scrollHeight, scrollArea.scrollTop + 120);
+          await sleep(500);
+        }
+
+        if (sameCountStreak >= 3) {
+          console.log('Same message count detected, forcing scroll up');
+          scrollArea = await scrollUp(scrollArea, scrollStep, 'same count streak');
+          await sleep(2000);
+          sameCountStreak = 0;
+        }
+        continue;
+      }
       
       // Click confirmation
       const buttons = document.querySelectorAll('[role="button"]');
@@ -247,7 +273,7 @@ async function unsendMessages(delay, startFrom) {
       for (const btn of buttons) {
         const text = btn.textContent.trim();
         const btnRect = btn.getBoundingClientRect();
-        if (text === 'Unsend' && btnRect.width > 100) {
+        if ((text === 'Unsend' || text === 'Remove') && btnRect.width > 100) {
           confirmBtn = btn;
           break;
         }
@@ -325,6 +351,44 @@ function getScrollArea(main) {
   });
 
   return scrollable || document.scrollingElement || main;
+}
+
+async function handleUnsendDialog() {
+  const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+  const unsendDialog = dialogs.find(dialog => {
+    const text = dialog.textContent || '';
+    return text.includes('Who do you want to unsend this message for?') || text.includes('Unsend for everyone');
+  });
+
+  if (!unsendDialog) {
+    return false;
+  }
+
+  const optionCandidates = Array.from(unsendDialog.querySelectorAll('[role="radio"], label, div, span'))
+    .filter(el => (el.textContent || '').trim() === 'Unsend for everyone');
+
+  if (optionCandidates.length > 0) {
+    const option = optionCandidates[0];
+    const radio = option.closest('[role="radio"]') || option.querySelector('[role="radio"]');
+    const isSelected = radio?.getAttribute('aria-checked') === 'true';
+    if (!isSelected) {
+      option.click();
+      await sleep(300);
+    }
+  }
+
+  const buttons = Array.from(unsendDialog.querySelectorAll('[role="button"], button'));
+  const removeButton = buttons.find(btn => (btn.textContent || '').trim() === 'Remove');
+
+  if (!removeButton) {
+    console.log('No Remove button in unsend dialog');
+    return false;
+  }
+
+  console.log('Clicking Remove in unsend dialog...');
+  removeButton.click();
+  await sleep(500);
+  return true;
 }
 
 function getMessageElements(main) {
