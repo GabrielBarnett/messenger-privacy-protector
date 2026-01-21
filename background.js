@@ -133,8 +133,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.status) {
-    updateStatus(request.status, request.type || 'info');
-    chrome.runtime.sendMessage({ status: request.status, type: request.type || 'info' });
+    const statusType = request.type || 'info';
+    updateStatus(request.status, statusType);
+
+    if (!sender?.tab?.id) {
+      chrome.runtime.sendMessage({ status: request.status, type: statusType });
+    }
     return false;
   }
 
