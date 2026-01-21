@@ -6,6 +6,7 @@ Messenger Privacy Protector is an unpacked Chrome extension that helps you quick
 
 - Unsend your messages in a given chat.
 - Simple UI for starting and stopping the process.
+- Optional keyword filters to delete only matching messages or skip messages containing ignored terms.
 
 ## Installation (Unpacked Chrome Extension)
 
@@ -20,8 +21,9 @@ Messenger Privacy Protector is an unpacked Chrome extension that helps you quick
 
 1. Open the chat you want to clean up in Messenger.
 2. Click the extension icon to open its UI.
-3. Follow the on-screen prompts to start unsending messages.
-4. Stop the process at any time from the extension UI.
+3. (Optional) Enable **Keyword filters** to include only messages that match your delete keywords or skip messages that contain ignored keywords.
+4. Follow the on-screen prompts to start unsending messages.
+5. Stop the process at any time from the extension UI.
 
 ## Notes
 
@@ -30,8 +32,6 @@ Messenger Privacy Protector is an unpacked Chrome extension that helps you quick
 
 ## Upcoming Features
 
-- Select keywords for deletion.
-- Ignore messages containing specific keywords.
 - Ignore or only delete image messages.
 - Save a log of everything deleted.
 
