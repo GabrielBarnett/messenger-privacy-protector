@@ -10,7 +10,11 @@
     "tabs"
   ],
   "action": {
-    "default_title": "Messenger Privacy Protector"
+    "default_title": "Messenger Privacy Protector",
+    "default_icon": "assets/extension-icon.svg"
+  },
+  "icons": {
+    "512": "assets/extension-icon.svg"
   },
   "background": {
     "service_worker": "background.js"
