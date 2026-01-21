@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const statusDiv = document.getElementById('status');
   const delayInput = document.getElementById('delay');
   const zeroDelayDisclaimer = document.getElementById('zeroDelayDisclaimer');
+  const troubleshootingLog = document.getElementById('troubleshootingLog');
+  const logEntries = [];
   chrome.runtime.sendMessage({ action: 'getStatus' }, function(response) {
     if (chrome.runtime.lastError) {
       showStatus('Unable to load status.', 'warning');
@@ -92,5 +94,15 @@ document.addEventListener('DOMContentLoaded', function() {
     statusDiv.textContent = message;
     statusDiv.className = type;
     statusDiv.style.display = 'block';
+    addLogEntry(message, type);
+  }
+
+  function addLogEntry(message, type) {
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const safeType = type || 'info';
+    logEntries.push(`[${timestamp}] [${safeType}] ${message}`);
+    const trimmed = logEntries.slice(-12);
+    troubleshootingLog.textContent = trimmed.join('\n');
   }
 });
