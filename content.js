@@ -5,6 +5,7 @@ if (window.__mppInjected) {
 
 let isRunning = false;
 let shouldStop = false;
+let removeForYouConfirmed = false;
 let currentThreadIdentity = null;
 let navigationObserver = null;
 let navigationHooksAttached = false;
@@ -26,6 +27,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (!isRunning) {
       isRunning = true;
       shouldStop = false;
+      removeForYouConfirmed = false;
       const keywordFilters = buildKeywordFilters({
         enabled: request.keywordFiltersEnabled,
         deleteKeywords: request.deleteKeywords,
@@ -348,6 +350,13 @@ async function unsendMessages(delay, keywordFilters) {
       await sleep(longWait);
 
       const dialogResult = await handleUnsendDialog();
+      if (dialogResult === 'stop') {
+        shouldStop = true;
+        isRunning = false;
+        sendStatus('Stopped: remove-for-you not confirmed', 'warning');
+        chrome.runtime.sendMessage({ action: 'stopped', reason: 'remove-for-you not confirmed' });
+        continue;
+      }
       if (dialogResult === 'cancelled') {
         skippedMessages.add(targetMessage);
         continue;
@@ -702,15 +711,16 @@ async function handleUnsendDialog() {
     || dialogText.includes('This message will be removed for you')
     || dialogText.includes('Other chat members will still be able to see it');
 
-  if (isRemoveForYouDialog) {
+  if (isRemoveForYouDialog && !removeForYouConfirmed) {
     const proceed = window.confirm(
-      'This will remove the message only for you. Other chat members will still see it. Do you want to continue?'
+      'This will remove messages only for you. Other chat members will still see them. Do you want to continue removing messages?'
     );
     if (!proceed) {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
       await sleep(300);
-      return 'cancelled';
+      return 'stop';
     }
+    removeForYouConfirmed = true;
   } else {
     const optionCandidates = Array.from(unsendDialog.querySelectorAll('[role="radio"], label, div, span'))
       .filter(el => (el.textContent || '').trim() === 'Unsend for everyone');

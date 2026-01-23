@@ -29,7 +29,7 @@ Messenger Privacy Protector is an unpacked Chrome extension that helps you quick
 
 - This extension works as an **unpacked** Chrome extension.
 - Keep the Messenger tab active while the extension is running for best results.
-- If Messenger only offers **Remove for you**, the extension will prompt you to confirm since the message will remain visible to other chat members.
+- If Messenger only offers **Remove for you**, the extension will prompt you to confirm before continuing automated removal because the message will remain visible to other chat members.
 
 ## Upcoming Features
 
