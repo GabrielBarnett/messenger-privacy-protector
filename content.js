@@ -306,7 +306,7 @@ async function unsendMessages(delay, keywordFilters) {
         }
       }
       
-      // Look for Unsend in menu
+      // Look for Unsend/Remove in menu
       const menuItems = document.querySelectorAll('[role="menuitem"]');
       console.log(`Menu has ${menuItems.length} items`);
       
@@ -314,14 +314,14 @@ async function unsendMessages(delay, keywordFilters) {
       for (const item of menuItems) {
         const text = item.textContent.trim();
         console.log(`  - "${text}"`);
-        if (text === 'Unsend') {
+        if (text === 'Unsend' || text === 'Remove' || text === 'Remove for you') {
           unsendItem = item;
           break;
         }
       }
       
       if (!unsendItem) {
-        console.log('No Unsend option - scrolling up to find older messages');
+        console.log('No Unsend/Remove option - scrolling up to find older messages');
         document.body.click();
         await sleep(mediumWait);
         skippedMessages.add(targetMessage);
@@ -347,8 +347,12 @@ async function unsendMessages(delay, keywordFilters) {
       targetMessage.setAttribute('data-mpp-processed', 'true');
       await sleep(longWait);
 
-      const dialogHandled = await handleUnsendDialog();
-      if (dialogHandled) {
+      const dialogResult = await handleUnsendDialog();
+      if (dialogResult === 'cancelled') {
+        skippedMessages.add(targetMessage);
+        continue;
+      }
+      if (dialogResult === 'confirmed') {
         messagesRemoved++;
         sendStatus(`Removed ${messagesRemoved} message(s)...`, 'info');
         await sleep(delay);
@@ -682,23 +686,43 @@ async function handleUnsendDialog() {
   const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
   const unsendDialog = dialogs.find(dialog => {
     const text = dialog.textContent || '';
-    return text.includes('Who do you want to unsend this message for?') || text.includes('Unsend for everyone');
+    return text.includes('Who do you want to unsend this message for?')
+      || text.includes('Unsend for everyone')
+      || text.includes('Remove for you')
+      || text.includes('This message will be removed for you')
+      || text.includes('Other chat members will still be able to see it');
   });
 
   if (!unsendDialog) {
-    return false;
+    return 'notfound';
   }
 
-  const optionCandidates = Array.from(unsendDialog.querySelectorAll('[role="radio"], label, div, span'))
-    .filter(el => (el.textContent || '').trim() === 'Unsend for everyone');
+  const dialogText = unsendDialog.textContent || '';
+  const isRemoveForYouDialog = dialogText.includes('Remove for you')
+    || dialogText.includes('This message will be removed for you')
+    || dialogText.includes('Other chat members will still be able to see it');
 
-  if (optionCandidates.length > 0) {
-    const option = optionCandidates[0];
-    const radio = option.closest('[role="radio"]') || option.querySelector('[role="radio"]');
-    const isSelected = radio?.getAttribute('aria-checked') === 'true';
-    if (!isSelected) {
-      option.click();
+  if (isRemoveForYouDialog) {
+    const proceed = window.confirm(
+      'This will remove the message only for you. Other chat members will still see it. Do you want to continue?'
+    );
+    if (!proceed) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
       await sleep(300);
+      return 'cancelled';
+    }
+  } else {
+    const optionCandidates = Array.from(unsendDialog.querySelectorAll('[role="radio"], label, div, span'))
+      .filter(el => (el.textContent || '').trim() === 'Unsend for everyone');
+
+    if (optionCandidates.length > 0) {
+      const option = optionCandidates[0];
+      const radio = option.closest('[role="radio"]') || option.querySelector('[role="radio"]');
+      const isSelected = radio?.getAttribute('aria-checked') === 'true';
+      if (!isSelected) {
+        option.click();
+        await sleep(300);
+      }
     }
   }
 
@@ -707,13 +731,13 @@ async function handleUnsendDialog() {
 
   if (!removeButton) {
     console.log('No Remove button in unsend dialog');
-    return false;
+    return 'notfound';
   }
 
   console.log('Clicking Remove in unsend dialog...');
   removeButton.click();
   await sleep(500);
-  return true;
+  return 'confirmed';
 }
 
 function getMessageElements(main) {
